@@ -248,6 +248,89 @@ void LineIterator::init(const Size& size, int type, uchar* data, size_t dataStep
     this->elemSize = (int)bt_pix0;
 }
 
+LineVirtualIterator::LineVirtualIterator(const Size& size, Point pt1, Point pt2, int connectivity, bool left_to_right)
+{
+    count = -1;
+
+    CV_Assert( connectivity == 8 || connectivity == 4 );
+
+    if( (unsigned)pt1.x >= (unsigned)(size.width) ||
+        (unsigned)pt2.x >= (unsigned)(size.width) ||
+        (unsigned)pt1.y >= (unsigned)(size.height) ||
+        (unsigned)pt2.y >= (unsigned)(size.height) )
+    {
+        if( !clipLine( size, pt1, pt2 ) )
+        {
+            offset = 0;
+            err = plusDelta = minusDelta = plusStep = minusStep = count = 0;
+            step = 0;
+            return;
+        }
+    }
+
+    size_t bt_pix = 1;
+    size_t istep = size.width;
+
+    int dx = pt2.x - pt1.x;
+    int dy = pt2.y - pt1.y;
+    int s = dx < 0 ? -1 : 0;
+
+    if( left_to_right )
+    {
+        dx = (dx ^ s) - s;
+        dy = (dy ^ s) - s;
+        pt1.x ^= (pt1.x ^ pt2.x) & s;
+        pt1.y ^= (pt1.y ^ pt2.y) & s;
+    }
+    else
+    {
+        dx = (dx ^ s) - s;
+        bt_pix = (bt_pix ^ s) - s;
+    }
+
+    offset = pt1.y * istep + pt1.x;
+
+    s = dy < 0 ? -1 : 0;
+    dy = (dy ^ s) - s;
+    istep = (istep ^ s) - s;
+
+    s = dy > dx ? -1 : 0;
+
+    /* conditional swaps */
+    dx ^= dy & s;
+    dy ^= dx & s;
+    dx ^= dy & s;
+
+    bt_pix ^= istep & s;
+    istep ^= bt_pix & s;
+    bt_pix ^= istep & s;
+
+    if( connectivity == 8 )
+    {
+        assert( dx >= 0 && dy >= 0 );
+
+        err = dx - (dy + dy);
+        plusDelta = dx + dx;
+        minusDelta = -(dy + dy);
+        plusStep = (int)istep;
+        minusStep = (int)bt_pix;
+        count = dx + 1;
+    }
+    else /* connectivity == 4 */
+    {
+        assert( dx >= 0 && dy >= 0 );
+
+        err = 0;
+        plusDelta = (dx + dx) + (dy + dy);
+        minusDelta = -(dy + dy);
+        plusStep = (int)(istep - bt_pix);
+        minusStep = (int)bt_pix;
+        count = dx + dy + 1;
+    }
+
+    step = size.width;
+}
+
 static void
 Line( Mat& img, Point pt1, Point pt2,
       const void* _color, int connectivity = 8 )
