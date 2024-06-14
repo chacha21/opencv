@@ -206,7 +206,7 @@ static void initInterTab1D(int method, float* tab, int tabsz)
             interpolateLanczos4( i*scale, tab );
     }
     else
-        CV_Error( CV_StsBadArg, "Unknown interpolation method" );
+        CV_Error( cv::Error::StsBadArg, "Unknown interpolation method" );
 }
 
 
@@ -223,7 +223,7 @@ static const void* initInterTab2D( int method, bool fixpt )
     else if( method == INTER_LANCZOS4 )
         tab = Lanczos4Tab_f[0][0], itab = Lanczos4Tab_i[0][0], ksize=8;
     else
-        CV_Error( CV_StsBadArg, "Unknown/unsupported interpolation type" );
+        CV_Error( cv::Error::StsBadArg, "Unknown/unsupported interpolation type" );
 
     if( !inittab[method] )
     {
@@ -1449,7 +1449,7 @@ static bool ocl_linearPolar(InputArray _src, OutputArray _dst,
     size_t h = dsize.height;
     String buildOptions;
     unsigned mem_size = 32;
-    if (flags & CV_WARP_INVERSE_MAP)
+    if (flags & cv::WARP_INVERSE_MAP)
     {
         buildOptions = "-D InverseMap";
     }
@@ -1464,7 +1464,7 @@ static bool ocl_linearPolar(InputArray _src, OutputArray _dst,
     ocl::KernelArg  ocl_cp_sp = ocl::KernelArg::PtrReadWrite(cp_sp);
     ocl::KernelArg ocl_r = ocl::KernelArg::PtrReadWrite(r);
 
-    if (!(flags & CV_WARP_INVERSE_MAP))
+    if (!(flags & cv::WARP_INVERSE_MAP))
     {
 
 
@@ -1495,14 +1495,14 @@ static bool ocl_linearPolar(InputArray _src, OutputArray _dst,
     size_t globalThreads[2] = { (size_t)dsize.width , (size_t)dsize.height };
     size_t localThreads[2] = { mem_size , mem_size };
     k.run(2, globalThreads, localThreads, false);
-    remap(src, _dst, mapx, mapy, flags & cv::INTER_MAX, (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
+    remap(src, _dst, mapx, mapy, flags & cv::INTER_MAX, (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
     return true;
 }
 static bool ocl_logPolar(InputArray _src, OutputArray _dst,
     Point2f center, double M, int flags)
 {
     if (M <= 0)
-        CV_Error(CV_StsOutOfRange, "M should be >0");
+        CV_Error(cv::Error::StsOutOfRange, "M should be >0");
     UMat src_with_border; // don't scope this variable (it holds image data)
 
     UMat mapx, mapy, r, cp_sp;
@@ -1518,7 +1518,7 @@ static bool ocl_logPolar(InputArray _src, OutputArray _dst,
     size_t h = dsize.height;
     String buildOptions;
     unsigned mem_size = 32;
-    if (flags & CV_WARP_INVERSE_MAP)
+    if (flags & cv::WARP_INVERSE_MAP)
     {
         buildOptions = "-D InverseMap";
     }
@@ -1535,7 +1535,7 @@ static bool ocl_logPolar(InputArray _src, OutputArray _dst,
     ocl::KernelArg  ocl_cp_sp = ocl::KernelArg::PtrReadWrite(cp_sp);
     ocl::KernelArg ocl_r = ocl::KernelArg::PtrReadWrite(r);
 
-    if (!(flags & CV_WARP_INVERSE_MAP))
+    if (!(flags & cv::WARP_INVERSE_MAP))
     {
 
 
@@ -1566,7 +1566,7 @@ static bool ocl_logPolar(InputArray _src, OutputArray _dst,
     size_t globalThreads[2] = { (size_t)dsize.width , (size_t)dsize.height };
     size_t localThreads[2] = { mem_size , mem_size };
     k.run(2, globalThreads, localThreads, false);
-    remap(src, _dst, mapx, mapy, flags & cv::INTER_MAX, (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
+    remap(src, _dst, mapx, mapy, flags & cv::INTER_MAX, (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
     return true;
 }
 #endif
@@ -1649,12 +1649,12 @@ static bool openvx_remap(Mat src, Mat dst, Mat map1, Mat map2, int interpolation
     }
     catch (const ivx::RuntimeError & e)
     {
-        CV_Error(CV_StsInternal, e.what());
+        CV_Error(cv::Error::StsInternal, e.what());
         return false;
     }
     catch (const ivx::WrapperError & e)
     {
-        CV_Error(CV_StsInternal, e.what());
+        CV_Error(cv::Error::StsInternal, e.what());
         return false;
     }
     return true;
@@ -1799,7 +1799,6 @@ void cv::remap( InputArray _src, OutputArray _dst,
     _dst.create( map1.size(), src.type() );
     Mat dst = _dst.getMat();
 
-
     CV_OVX_RUN(
         src.type() == CV_8UC1 && dst.type() == CV_8UC1 &&
         !ovx::skipSmallImages<VX_KERNEL_REMAP>(src.cols, src.rows) &&
@@ -1815,6 +1814,12 @@ void cv::remap( InputArray _src, OutputArray _dst,
 
     if( dst.data == src.data )
         src = src.clone();
+
+    if ((map1.type() == CV_32FC1) && (map2.type() == CV_32FC1))
+    {
+        CALL_HAL(remap32f, cv_hal_remap32f, src.type(), src.data, src.step, src.cols, src.rows, dst.data, dst.step, dst.cols, dst.rows,
+                 map1.ptr<float>(), map1.step, map2.ptr<float>(), map2.step, interpolation, borderType, borderValue.val);
+    }
 
     interpolation &= ~WARP_RELATIVE_MAP;
     if( interpolation == INTER_AREA )
@@ -1888,7 +1893,7 @@ void cv::remap( InputArray _src, OutputArray _dst,
             CV_Assert( _src.channels() <= 4 );
         }
         else
-            CV_Error( CV_StsBadArg, "Unknown interpolation method" );
+            CV_Error( cv::Error::StsBadArg, "Unknown interpolation method" );
         CV_Assert( ifunc != 0 );
         ctab = initInterTab2D( interpolation, fixpt );
     }
@@ -2236,7 +2241,7 @@ void cv::convertMaps( InputArray _map1, InputArray _map2,
             }
         }
         else
-            CV_Error( CV_StsNotImplemented, "Unsupported combination of input/output matrices" );
+            CV_Error( cv::Error::StsNotImplemented, "Unsupported combination of input/output matrices" );
     }
 }
 
@@ -3610,7 +3615,7 @@ void cv::invertAffineTransform(InputArray _matM, OutputArray __iM)
         iM[istep] = A21; iM[istep+1] = A22; iM[istep+2] = b2;
     }
     else
-        CV_Error( CV_StsUnsupportedFormat, "" );
+        CV_Error( cv::Error::StsUnsupportedFormat, "" );
 }
 
 cv::Mat cv::getPerspectiveTransform(InputArray _src, InputArray _dst, int solveMethod)
@@ -3635,7 +3640,7 @@ cvWarpAffine( const CvArr* srcarr, CvArr* dstarr, const CvMat* marr,
     cv::Mat matrix = cv::cvarrToMat(marr);
     CV_Assert( src.type() == dst.type() );
     cv::warpAffine( src, dst, matrix, dst.size(), flags,
-        (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT,
+        (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT,
         fillval );
 }
 
@@ -3647,7 +3652,7 @@ cvWarpPerspective( const CvArr* srcarr, CvArr* dstarr, const CvMat* marr,
     cv::Mat matrix = cv::cvarrToMat(marr);
     CV_Assert( src.type() == dst.type() );
     cv::warpPerspective( src, dst, matrix, dst.size(), flags,
-        (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT,
+        (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT,
         fillval );
 }
 
@@ -3660,7 +3665,7 @@ cvRemap( const CvArr* srcarr, CvArr* dstarr,
     cv::Mat mapx = cv::cvarrToMat(_mapx), mapy = cv::cvarrToMat(_mapy);
     CV_Assert( src.type() == dst.type() && dst.size() == mapx.size() );
     cv::remap( src, dst, mapx, mapy, flags & cv::INTER_MAX,
-        (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT,
+        (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT,
         fillval );
     CV_Assert( dst0.data == dst.data );
 }
@@ -3744,7 +3749,7 @@ void cv::warpPolar(InputArray _src, OutputArray _dst, Size dsize,
     mapy.create(dsize, CV_32F);
     bool semiLog = (flags & WARP_POLAR_LOG) != 0;
 
-    if (!(flags & CV_WARP_INVERSE_MAP))
+    if (!(flags & cv::WARP_INVERSE_MAP))
     {
         CV_Assert(!dsize.empty());
         double Kangle = CV_2PI / dsize.height;
@@ -3784,7 +3789,7 @@ void cv::warpPolar(InputArray _src, OutputArray _dst, Size dsize,
                 my[rho] = (float)y;
             }
         }
-        remap(_src, _dst, mapx, mapy, flags & cv::INTER_MAX, (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
+        remap(_src, _dst, mapx, mapy, flags & cv::INTER_MAX, (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
     }
     else
     {
@@ -3837,7 +3842,7 @@ void cv::warpPolar(InputArray _src, OutputArray _dst, Size dsize,
             }
         }
         remap(src, _dst, mapx, mapy, flags & cv::INTER_MAX,
-              (flags & CV_WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
+              (flags & cv::WARP_FILL_OUTLIERS) ? cv::BORDER_CONSTANT : cv::BORDER_TRANSPARENT);
     }
 }
 

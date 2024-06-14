@@ -158,9 +158,11 @@ class Builder:
         self.debug = True if config.debug else False
         self.debug_info = True if config.debug_info else False
         self.no_samples_build = True if config.no_samples_build else False
+        self.hwasan = True if config.hwasan else False
         self.opencl = True if config.opencl else False
         self.no_kotlin = True if config.no_kotlin else False
         self.shared = True if config.shared else False
+        self.disable = args.disable
 
     def get_cmake(self):
         if not self.config.use_android_buildtools and check_executable(['cmake', '--version']):
@@ -250,20 +252,31 @@ class Builder:
             cmake_vars['BUILD_SHARED_LIBS'] = "ON"
 
         if self.config.modules_list is not None:
-            cmd.append("-DBUILD_LIST='%s'" % self.config.modules_list)
+            cmake_vars['BUILD_LIST'] = '%s' % self.config.modules_list
 
         if self.config.extra_modules_path is not None:
-            cmd.append("-DOPENCV_EXTRA_MODULES_PATH='%s'" % self.config.extra_modules_path)
+            cmake_vars['OPENCV_EXTRA_MODULES_PATH'] = '%s' % self.config.extra_modules_path
 
         if self.use_ccache == True:
-            cmd.append("-DNDK_CCACHE=ccache")
+            cmake_vars['NDK_CCACHE'] = 'ccache'
         if do_install:
-            cmd.extend(["-DBUILD_TESTS=ON", "-DINSTALL_TESTS=ON"])
+            cmake_vars['BUILD_TESTS'] = "ON"
+            cmake_vars['INSTALL_TESTS'] = "ON"
 
         if no_media_ndk:
             cmake_vars['WITH_ANDROID_MEDIANDK'] = "OFF"
 
+        if self.hwasan and "arm64" in abi.name:
+            hwasan_flags = "-fno-omit-frame-pointer -fsanitize=hwaddress"
+            cmake_vars['CMAKE_CXX_FLAGS_DEBUG']    = hwasan_flags
+            cmake_vars['CMAKE_C_FLAGS_DEBUG']      = hwasan_flags
+            cmake_vars['CMAKE_LINKER_FLAGS_DEBUG'] = hwasan_flags
+
         cmake_vars.update(abi.cmake_vars)
+
+        if len(self.disable) > 0:
+            cmake_vars.update({'WITH_%s' % f : "OFF" for f in self.disable})
+
         cmd += [ "-D%s='%s'" % (k, v) for (k, v) in cmake_vars.items() if v is not None]
         cmd.append(self.opencvdir)
         execute(cmd)
@@ -374,6 +387,8 @@ if __name__ == "__main__":
     parser.add_argument('--no_kotlin', action="store_true", help="Disable Kotlin extensions")
     parser.add_argument('--shared', action="store_true", help="Build shared libraries")
     parser.add_argument('--no_media_ndk', action="store_true", help="Do not link Media NDK (required for video I/O support)")
+    parser.add_argument('--hwasan', action="store_true", help="Enable Hardware Address Sanitizer on ARM64")
+    parser.add_argument('--disable', metavar='FEATURE', default=[], action='append', help='OpenCV features to disable (add WITH_*=OFF). To disable multiple, specify this flag again, e.g. "--disable TBB --disable OPENMP"')
     args = parser.parse_args()
 
     log.basicConfig(format='%(message)s', level=log.DEBUG)
